@@ -68,7 +68,7 @@
       </div>
       <div class="topbar-actions">
         <span id="userEmail" class="user-chip"></span>
-        <a id="importLink" class="secondary-button link-button hidden" target="_blank" rel="noopener">เปิดหน้าจอนำเข้า CSV</a>
+        <button id="importButton" class="secondary-button import-header-button hidden" type="button">นำเข้าข้อมูลรายเดือน</button>
         <button id="refreshButton" class="secondary-button" type="button">รีเฟรช</button>
         <button id="logoutButton" class="danger-button" type="button">ออกจากระบบ</button>
       </div>
@@ -79,13 +79,29 @@
         <div>
           <p class="eyebrow">Secure aggregated analytics</p>
           <h2>ภาพรวม Workload รายเดือน</h2>
-          <p>RawData และ Patient ID คงอยู่ใน Google Sheets/Apps Script ส่วน Supabase เก็บเฉพาะยอดสรุปรายเดือนสำหรับแสดงผลอย่างรวดเร็ว</p>
+          <p>นำเข้าไฟล์จากหน้า GitHub Dashboard โดยตรง ส่วน RawData และ CleanData จะถูกเก็บใน Google Sheets ผ่าน Apps Script และ Supabase รับเฉพาะยอดสรุปรายเดือน</p>
         </div>
         <div class="filter-panel">
           <label for="yearFilter">ช่วงข้อมูล</label>
           <select id="yearFilter">
             <option value="all">ทุกปี</option>
           </select>
+        </div>
+      </section>
+
+      <section id="monthlyImportCard" class="monthly-import-card hidden" aria-labelledby="monthlyImportTitle">
+        <div class="monthly-import-icon" aria-hidden="true">CSV</div>
+        <div class="monthly-import-content">
+          <p class="eyebrow">Monthly data update</p>
+          <h2 id="monthlyImportTitle">นำเข้าข้อมูล GEM5000 ประจำเดือน</h2>
+          <p>เลือกไฟล์ CSV ใน Dashboard นี้ ระบบจะส่งข้อมูลไปเก็บใน Google Sheets ตรวจข้อมูลซ้ำ สร้าง CleanData/Workload และ Sync เฉพาะยอดสรุปไป Supabase</p>
+          <div class="import-status-row">
+            <span>เดือนล่าสุดใน Dashboard: <strong id="importLatestMonth">-</strong></span>
+            <span id="importSetupStatus" class="import-setup-status">กำลังตรวจสอบระบบนำเข้า...</span>
+          </div>
+        </div>
+        <div class="monthly-import-actions">
+          <button id="openImportButton" class="import-action-button" type="button">เลือกไฟล์ CSV และนำเข้า</button>
         </div>
       </section>
 
@@ -145,9 +161,61 @@
       </section>
 
       <footer class="footer-note">
-        ข้อมูลบนเว็บไซต์เป็นข้อมูลสรุปเท่านั้น การนำเข้า CSV และข้อมูลระดับผู้ป่วยให้ดำเนินการใน Google Sheets ที่จำกัดสิทธิ์ผู้ใช้งาน
+        ข้อมูลบนเว็บไซต์เป็นข้อมูลสรุปเท่านั้น RawData และ CleanData อยู่ใน Google Sheets และอนุญาตให้นำเข้าเฉพาะบัญชีบทบาท admin
       </footer>
     </main>
   </div>
+
+  <div id="importModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="importModalTitle">
+    <section class="import-modal-panel">
+      <header class="import-modal-header">
+        <div>
+          <p class="eyebrow">GitHub monthly import</p>
+          <h2 id="importModalTitle">นำเข้าข้อมูล GEM5000 ประจำเดือน</h2>
+        </div>
+        <button id="closeImportModalButton" class="modal-close-button" type="button" aria-label="ปิดหน้าต่าง">×</button>
+      </header>
+
+      <div class="import-modal-body">
+        <div id="importMissingConfig" class="import-config-warning hidden">
+          <strong>ยังไม่ได้ตั้งค่า Apps Script Web App URL</strong>
+          <p>เปิดไฟล์ <code>github-pages/config.js</code> แล้วใส่ URL ที่ลงท้ายด้วย <code>/exec</code> ในช่อง <code>IMPORT_APP_URL</code></p>
+        </div>
+
+        <div id="importWorkspace">
+          <div class="import-flow-grid" aria-label="ขั้นตอนนำเข้าข้อมูล">
+            <div class="import-flow-step" data-import-step="1"><span>1</span><div><strong>อ่านไฟล์</strong><small>อ่าน CSV ภายในเบราว์เซอร์</small></div></div>
+            <div class="import-flow-step" data-import-step="2"><span>2</span><div><strong>ส่งเข้า Google Sheets</strong><small>Apps Script รับข้อมูลอย่างปลอดภัย</small></div></div>
+            <div class="import-flow-step" data-import-step="3"><span>3</span><div><strong>สร้างข้อมูลสรุป</strong><small>RawData → CleanData → Workload</small></div></div>
+            <div class="import-flow-step" data-import-step="4"><span>4</span><div><strong>อัปเดต Dashboard</strong><small>Sync เฉพาะยอดสรุปไป Supabase</small></div></div>
+          </div>
+
+          <div id="importDropZone" class="import-drop-zone">
+            <label for="csvFileInput">ไฟล์ GEM5000 CSV</label>
+            <input id="csvFileInput" type="file" accept=".csv,text/csv">
+            <p id="selectedFile" class="file-note">ยังไม่ได้เลือกไฟล์</p>
+            <p class="file-security-note">Patient ID จะถูกส่งไปยัง Apps Script เพื่อเก็บใน Google Sheets เท่านั้น และไม่ถูกบันทึกใน Supabase</p>
+          </div>
+
+          <div id="importResult" class="import-result hidden" role="status" aria-live="polite"></div>
+        </div>
+      </div>
+
+      <footer class="import-modal-footer">
+        <button id="clearImportButton" class="secondary-button" type="button">ล้างไฟล์ที่เลือก</button>
+        <button id="startImportButton" class="import-action-button" type="button">เริ่มนำเข้าข้อมูล</button>
+      </footer>
+    </section>
+  </div>
+
+  <iframe id="importTransportFrame" name="gem5000ImportTransport" class="transport-frame" title="ช่องทางส่งข้อมูลไป Apps Script"></iframe>
+  <form id="importTransportForm" class="hidden" method="post" target="gem5000ImportTransport" accept-charset="UTF-8">
+    <input type="hidden" name="action" value="import_csv">
+    <input id="importRequestIdField" type="hidden" name="request_id">
+    <input id="importFileNameField" type="hidden" name="file_name">
+    <input id="importAccessTokenField" type="hidden" name="access_token">
+    <input id="importClientOriginField" type="hidden" name="client_origin">
+    <textarea id="importCsvTextField" name="csv_text"></textarea>
+  </form>
 </body>
 </html>

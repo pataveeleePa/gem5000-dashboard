@@ -5,6 +5,6 @@ window.GEM5000_CONFIG = {
   SUPABASE_URL: 'https://YOUR_PROJECT_REF.supabase.co',
   SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_REPLACE_ME',
 
-  // ไม่บังคับ: ลิงก์ไป Google Sheet หรือ Apps Script Import UI ที่จำกัดสิทธิ์แล้ว
+  // URL Apps Script Web App ที่ลงท้ายด้วย /exec สำหรับรับไฟล์จากหน้า GitHub Dashboard
   IMPORT_APP_URL: ''
 };

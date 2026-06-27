@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>GEM5000 Analytics Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+  <script src="config.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <div id="setupScreen" class="screen center-screen hidden">
+    <section class="auth-card wide-card">
+      <div class="brand-mark">GEM</div>
+      <h1>ยังไม่ได้ตั้งค่าเว็บไซต์</h1>
+      <p id="setupMessage">กรุณาแก้ไฟล์ <code>config.js</code> ก่อนเปิดใช้งาน</p>
+    </section>
+  </div>
+
+  <div id="loadingScreen" class="screen center-screen">
+    <section class="auth-card">
+      <div class="brand-mark">GEM</div>
+      <h1>กำลังตรวจสอบระบบ</h1>
+      <p>กำลังเชื่อมต่อฐานข้อมูลแบบปลอดภัย...</p>
+      <div class="spinner" aria-label="กำลังโหลด"></div>
+    </section>
+  </div>
+
+  <div id="loginScreen" class="screen center-screen hidden">
+    <section class="auth-card">
+      <div class="brand-mark">GEM</div>
+      <p class="eyebrow">CNMI Laboratory Analytics</p>
+      <h1>เข้าสู่ระบบ Dashboard</h1>
+      <p class="muted">สำหรับผู้ใช้งานที่ได้รับอนุญาตเท่านั้น</p>
+
+      <form id="loginForm" novalidate>
+        <label for="email">อีเมล</label>
+        <input id="email" type="email" autocomplete="username" required placeholder="name@hospital.ac.th">
+
+        <label for="password">รหัสผ่าน</label>
+        <input id="password" type="password" autocomplete="current-password" required placeholder="รหัสผ่าน Supabase">
+
+        <button id="loginButton" class="primary-button" type="submit">เข้าสู่ระบบ</button>
+      </form>
+      <div id="loginError" class="message error-message hidden" role="alert"></div>
+      <p class="privacy-note">หน้าเว็บนี้แสดงเฉพาะข้อมูลสรุป ไม่แสดง Patient ID หรือผลตรวจรายบุคคล</p>
+    </section>
+  </div>
+
+  <div id="accessDeniedScreen" class="screen center-screen hidden">
+    <section class="auth-card wide-card">
+      <div class="brand-mark danger">!</div>
+      <h1>บัญชีนี้ยังไม่ได้รับสิทธิ์</h1>
+      <p>กรุณาให้ผู้ดูแลระบบเพิ่ม User ID ในตาราง <code>gem5000_allowed_users</code></p>
+      <button id="deniedLogoutButton" class="secondary-button" type="button">ออกจากระบบ</button>
+    </section>
+  </div>
+
+  <div id="dashboardScreen" class="app-shell hidden">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">CNMI Laboratory Analytics</p>
+        <h1>GEM5000 Dashboard</h1>
+      </div>
+      <div class="topbar-actions">
+        <span id="userEmail" class="user-chip"></span>
+        <a id="importLink" class="secondary-button link-button hidden" target="_blank" rel="noopener">เปิดหน้าจอนำเข้า CSV</a>
+        <button id="refreshButton" class="secondary-button" type="button">รีเฟรช</button>
+        <button id="logoutButton" class="danger-button" type="button">ออกจากระบบ</button>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <section class="hero-panel">
+        <div>
+          <p class="eyebrow">Secure aggregated analytics</p>
+          <h2>ภาพรวม Workload รายเดือน</h2>
+          <p>RawData และ Patient ID คงอยู่ใน Google Sheets/Apps Script ส่วน Supabase เก็บเฉพาะยอดสรุปรายเดือนสำหรับแสดงผลอย่างรวดเร็ว</p>
+        </div>
+        <div class="filter-panel">
+          <label for="yearFilter">ช่วงข้อมูล</label>
+          <select id="yearFilter">
+            <option value="all">ทุกปี</option>
+          </select>
+        </div>
+      </section>
+
+      <div id="dashboardMessage" class="message hidden" role="status"></div>
+
+      <section class="kpi-grid">
+        <article class="kpi-card">
+          <span>Workload เดือนล่าสุด</span>
+          <strong id="latestWorkload">-</strong>
+          <small id="latestMonth">-</small>
+        </article>
+        <article class="kpi-card">
+          <span>Workload รวมช่วงที่เลือก</span>
+          <strong id="periodWorkload">-</strong>
+          <small>นับจากเส้น ALL</small>
+        </article>
+        <article class="kpi-card">
+          <span>จำนวนเดือน</span>
+          <strong id="monthCount">-</strong>
+          <small>ที่มีข้อมูลใน Supabase</small>
+        </article>
+        <article class="kpi-card">
+          <span>Sync ล่าสุด</span>
+          <strong id="lastSyncTime" class="small-value">-</strong>
+          <small id="syncSourceRows">-</small>
+        </article>
+      </section>
+
+      <section class="chart-card featured-chart">
+        <div class="chart-heading">
+          <div>
+            <h2>Monthly Workload by Area Group + ALL</h2>
+            <p>LAB = Area LABORATORY ที่ใช้ NEWGEM5000 / NEW GEM5000, Nurse = รายการอื่นทั้งหมด, ALL = ผลรวม</p>
+          </div>
+        </div>
+        <div class="chart-wrap"><canvas id="groupAllChart"></canvas></div>
+      </section>
+
+      <section class="chart-card">
+        <div class="chart-heading">
+          <div>
+            <h2>Monthly Workload by Area</h2>
+            <p>แนวโน้มปริมาณงานแยกตาม Area จริงจากข้อมูลต้นทาง</p>
+          </div>
+        </div>
+        <div class="chart-wrap"><canvas id="areaChart"></canvas></div>
+      </section>
+
+      <section class="chart-card">
+        <div class="chart-heading">
+          <div>
+            <h2>Monthly Workload by Analyzer</h2>
+            <p>แนวโน้มการใช้งานเครื่องแต่ละชื่อ Analyzer</p>
+          </div>
+        </div>
+        <div class="chart-wrap"><canvas id="analyzerChart"></canvas></div>
+      </section>
+
+      <footer class="footer-note">
+        ข้อมูลบนเว็บไซต์เป็นข้อมูลสรุปเท่านั้น การนำเข้า CSV และข้อมูลระดับผู้ป่วยให้ดำเนินการใน Google Sheets ที่จำกัดสิทธิ์ผู้ใช้งาน
+      </footer>
+    </main>
+  </div>
+</body>
+</html>
